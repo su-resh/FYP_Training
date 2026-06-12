@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pth
+*.png
+*.jpg
+*.jpeg
+*.npy
+*.npz
+.DS_Store
+.thumbs.db
