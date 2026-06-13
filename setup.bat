@@ -26,7 +26,8 @@ echo ========================================
 echo  Setup complete!
 echo.
 echo  Commands:
-echo    Train model : python train_seg.py --batch_size 16 --epochs 30
+echo    Train model : python train_seg.py --batch_size 32 --target_size 512 --epochs 50
 echo    Evaluate    : python inference.py --model_path skin_cancer_model.pth
+echo    Evaluate EMA: python inference.py --model_path skin_cancer_model_ema.pth
 echo ========================================
 pause

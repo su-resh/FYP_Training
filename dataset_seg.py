@@ -1,5 +1,5 @@
 import os
-import pandas as pd
+import random
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -7,28 +7,20 @@ from PIL import Image
 
 
 class BinarySegmentationDataset(Dataset):
-    def __init__(self, image_dir, mask_dir, ground_truth_path, transform=None, target_size=(384, 384)):
+    def __init__(self, df, image_dir, mask_dir, transform=None, target_size=(384, 384), is_train=False):
+        self.df = df.reset_index(drop=True)
         self.image_dir = image_dir
         self.mask_dir = mask_dir
         self.transform = transform
         self.target_size = target_size
-
-        self.df = pd.read_csv(ground_truth_path)
+        self.is_train = is_train
         self.cancer_classes = ['MEL', 'BCC', 'AKIEC']
 
-        self.valid_indices = []
-        for idx in range(len(self.df)):
-            image_id = self.df.iloc[idx]['image']
-            mask_path = os.path.join(self.mask_dir, f"{image_id}_segmentation.png")
-            if os.path.exists(mask_path):
-                self.valid_indices.append(idx)
-
     def __len__(self):
-        return len(self.valid_indices)
+        return len(self.df)
 
     def __getitem__(self, idx):
-        actual_idx = self.valid_indices[idx]
-        row = self.df.iloc[actual_idx]
+        row = self.df.iloc[idx]
         image_id = row['image']
 
         img_path = os.path.join(self.image_dir, f"{image_id}.jpg")
@@ -55,3 +47,38 @@ class BinarySegmentationDataset(Dataset):
             'is_cancer': torch.tensor(is_cancer, dtype=torch.float32),
             'image_id': image_id
         }
+
+
+class MixupAugmentation:
+    def __init__(self, alpha=0.2):
+        self.alpha = alpha
+
+    def __call__(self, batch):
+        if self.alpha <= 0 or not self._should_apply():
+            return batch
+
+        images = batch['image']
+        masks = batch['mask']
+        labels = batch['is_cancer']
+
+        batch_size = images.size(0)
+        index = torch.randperm(batch_size).to(images.device)
+
+        lam = np.random.beta(self.alpha, self.alpha)
+        if lam < 0.1 or lam > 0.9:
+            lam = 0.5
+
+        mixed_images = lam * images + (1 - lam) * images[index]
+        mixed_masks = lam * masks + (1 - lam) * masks[index]
+        mixed_labels = lam * labels + (1 - lam) * labels[index]
+
+        return {
+            'image': mixed_images,
+            'mask': mixed_masks,
+            'is_cancer': mixed_labels,
+            'image_id': batch['image_id'],
+            'lam': lam
+        }
+
+    def _should_apply(self):
+        return np.random.random() < 0.5
